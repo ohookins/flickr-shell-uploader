@@ -1,0 +1,112 @@
+#!/bin/bash
+
+APIKEY='beaf572d391130cbc8e7574ef1dbd1e0'
+SECRET='45a4009d57890cdb'
+DOTFILE="$HOME/.flickr-uploader"
+FROB=''
+TOKEN=''
+FILES="$*"
+
+require() {
+    if ! which $1 > /dev/null; then
+        echo "Unable to find ${1} (not installed or in PATH), which is required."
+        exit 1
+    fi
+}
+
+loadconfig() {
+    [ -f "$DOTFILE" ] && source "$DOTFILE"
+}
+
+getfrob() {
+    if [ "x$FROB" == "x" ]; then
+        local SIG=$(echo -n ${SECRET}api_key${APIKEY}methodflickr.auth.getFrob | md5sum | awk '{print $1}')
+        local FROBINFO=$(curl -s "http://api.flickr.com/services/rest/?method=flickr.auth.getFrob&api_key=${APIKEY}&api_sig=${SIG}")
+        local RC=$?
+        if [ $RC -ne 0 ] ||  echo $FROBINFO | grep -qi "err"; then
+            echo "Some error occurred retrieving the frob."
+            exit 2
+        fi
+        FROB=$(echo $FROBINFO | grep -o '<frob>.*</frob>' | tr '<>' ' ' | awk '{print $2}')
+        echo "FROB=$FROB" > "$DOTFILE"
+    fi
+}
+
+auth() {
+    if [ "x$TOKEN" == "x" ]; then
+        local SIG=$(echo -n ${SECRET}api_key${APIKEY}frob${FROB}permswrite | md5sum | awk '{print $1}')
+        echo "Please go to the following URL: http://flickr.com/services/auth/?api_key=${APIKEY}&perms=write&frob=${FROB}&api_sig=${SIG}"
+        echo ""
+        echo "Then return here and press enter."
+        read line
+    fi
+}
+
+gettoken() {
+    if [ "x$TOKEN" == "x" ]; then
+        local SIG=$(echo -n ${SECRET}api_key${APIKEY}frob${FROB}methodflickr.auth.getToken | md5sum | awk '{print $1}')
+        local TOKENINFO=$(curl -s "http://api.flickr.com/services/rest/?method=flickr.auth.getToken&api_key=${APIKEY}&frob=${FROB}&api_sig=${SIG}")
+        local RC=$?
+        if [ $RC -ne 0 ] || echo $TOKENINFO | grep -qi "err"; then
+            echo "Was not able to successfully get the token of the confirmed frob. Try deleting $DOTFILE and starting again."
+            exit 3
+        fi
+        TOKEN=$(echo $TOKENINFO | grep -o '<token>.*</token>' | tr '<>' ' ' | awk '{print $2}')
+        echo "TOKEN=$TOKEN" >> "$DOTFILE"
+    fi
+}
+
+checktoken() {
+    if [ "x$TOKEN" == "x" ]; then
+        echo "No token was defined."
+        exit 4
+    else
+        local SIG=$(echo -n ${SECRET}api_key${APIKEY}auth_token${TOKEN}methodflickr.auth.checkToken | md5sum | awk '{print $1}')
+        local TOKENINFO=$(curl -s "http://api.flickr.com/services/rest/?method=flickr.auth.checkToken&api_key=${APIKEY}&auth_token=${TOKEN}&api_sig=${SIG}")
+        local RC=$?
+        if [ $RC -ne 0 ] || echo $TOKENINFO | grep -qi "err"; then
+            echo "Was not able to successfully check the token of the confirmed frob. Try deleting $DOTFILE and starting again."
+            exit 5
+        fi
+        if ! echo $TOKENINFO | grep -q '<perms>write</perms>'; then
+            echo "Don't have write permissions. Try deleting $DOTFILE and starting again."
+            exit 6
+        fi
+    fi
+}
+
+upload() {
+    for i in $FILES; do
+        if ! [ -f $i ]; then
+            echo "$i does not exist"
+            continue
+        fi
+        local SIG=$(echo -n ${SECRET}api_key${APIKEY}auth_token${TOKEN} | md5sum | awk '{print $1}')
+        local UPLOAD=$(curl -s -F api_key=${APIKEY} -F auth_token=${TOKEN} -F api_sig=${SIG} -F photo=@"$i" http://api.flickr.com/services/upload/)
+        RC=$?
+        if [ $RC -ne 0 ] || echo $UPLOAD | grep -qi 'err'; then
+            echo "Error uploading file $i"
+        else
+            echo "Uploaded $i"
+        fi
+    done
+}
+
+# We need these tools to run
+require curl
+require awk
+require grep
+require tr
+require md5sum
+
+# Load a previously saved frob, otherwise make a new one
+loadconfig
+getfrob
+
+# Authenticate, and check the resulting token
+auth
+gettoken
+checktoken
+
+# Upload the actual files!
+upload
