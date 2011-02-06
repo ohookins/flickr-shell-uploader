@@ -2,7 +2,7 @@
 
 APIKEY='beaf572d391130cbc8e7574ef1dbd1e0'
 SECRET='45a4009d57890cdb'
-DOTFILE="$HOME/.flickr-uploader"
+DOTFILE="$HOME/.flickr-shell-uploader"
 FROB=''
 TOKEN=''
 FILES="$*"
@@ -76,20 +76,19 @@ checktoken() {
 }
 
 upload() {
-    for i in $FILES; do
-        if ! [ -f $i ]; then
-            echo "$i does not exist"
-            continue
-        fi
-        local SIG=$(echo -n ${SECRET}api_key${APIKEY}auth_token${TOKEN} | md5sum | awk '{print $1}')
-        local UPLOAD=$(curl -s -F api_key=${APIKEY} -F auth_token=${TOKEN} -F api_sig=${SIG} -F photo=@"$i" http://api.flickr.com/services/upload/)
-        RC=$?
-        if [ $RC -ne 0 ] || echo $UPLOAD | grep -qi 'err'; then
-            echo "Error uploading file $i"
-        else
-            echo "Uploaded $i"
-        fi
-    done
+    local FILE="$1"
+    if ! [ -f "$FILE" ]; then
+        echo "$FILE does not exist"
+        continue
+    fi
+    local SIG=$(echo -n ${SECRET}api_key${APIKEY}auth_token${TOKEN} | md5sum | awk '{print $1}')
+    local UPLOAD=$(curl -s -F api_key=${APIKEY} -F auth_token=${TOKEN} -F api_sig=${SIG} -F photo=@"$FILE" http://api.flickr.com/services/upload/)
+    RC=$?
+    if [ $RC -ne 0 ] || echo $UPLOAD | grep -qi 'err'; then
+        echo "Error uploading file $FILE"
+    else
+        echo "Uploaded $FILE"
+    fi
 }
 
 # We need these tools to run
@@ -109,4 +108,7 @@ gettoken
 checktoken
 
 # Upload the actual files!
-upload
+while true; do
+    upload "$1"
+    shift || break
+done
