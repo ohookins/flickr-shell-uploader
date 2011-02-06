@@ -109,6 +109,6 @@ checktoken
 
 # Upload the actual files!
 while true; do
-    upload "$1"
+    [ "x$1" != "x" ] && upload "$1"
     shift || break
 done
