@@ -1,11 +1,72 @@
 #!/bin/bash
 
+OPTIONS='t:d:a:p:f:m:s:c:h:i:'
 APIKEY='beaf572d391130cbc8e7574ef1dbd1e0'
 SECRET='45a4009d57890cdb'
 DOTFILE="$HOME/.flickr-shell-uploader"
 FROB=''
 TOKEN=''
-FILES="$*"
+
+# Check we have some command line arguments at least
+if [ $# -eq 0 ]; then
+    cat <<EOF
+Usage:
+    flickr-shell-uploader [-t TITLE] [-d DESCRIPTION] [-a TAGS] [-p IS_PUBLIC] [-f IS_FRIEND] [-m IS_FAMILY] [-s SAFETY_LEVEL] [-c CONTENT_TYPE] [-h HIDDEN] -i <file> [-i <file> ...]
+
+    All of the below options are optional (aside from files to upload):
+    TITLE: Title of your photo.
+    DESCRIPTION: Description of your photo.
+    TAGS: Comma-separated list of tags for the photo (no spaces).
+    IS_PUBLIC: 0 = no, 1 = yes - viewable by anyone.
+    IS_FRIEND: 0 = no, 1 = yes - friends can view the photo.
+    IS_FAMILY: 0 = no, 1 = yes - family can view the photo.
+    SAFETY_LEVEL: 1 = safe, 2 = moderate, 3 = restricted.
+    CONTENT_TYPE: 1 = photo, 2 = screenshot, 3 = other.
+    HIDDEN: 1 = visible, 2 = hidden. Hides the photo from public searches.
+
+    One or more files may be supplied, but the above options may only be useful for individual files!
+
+EOF
+    exit 0
+fi
+
+# Parse command line options
+FILEINDEX=0
+while getopts $OPTIONS name; do
+    case $name in
+        t)
+            title="$OPTARG"
+            ;;
+        d)
+            description="$OPTARG"
+            ;;
+        a)
+            tags="${OPTARG/,/ }"
+            ;;
+        p)
+            is_public="$OPTARG"
+            ;;
+        f)
+            is_friend="$OPTARG"
+            ;;
+        m)
+            is_family="$OPTARG"
+            ;;
+        s)
+            safety_level="$OPTARG"
+            ;;
+        c)
+            content_type="$OPTARG"
+            ;;
+        h)
+            hidden="$OPTARG"
+            ;;
+        i)
+            FILES[$FILEINDEX]="$OPTARG"
+            let FILEINDEX=FILEINDEX+1
+            ;;
+    esac
+done
 
 require() {
     if ! which $1 > /dev/null; then
@@ -23,7 +84,7 @@ getfrob() {
         local SIG=$(echo -n ${SECRET}api_key${APIKEY}methodflickr.auth.getFrob | md5sum | awk '{print $1}')
         local FROBINFO=$(curl -s "http://api.flickr.com/services/rest/?method=flickr.auth.getFrob&api_key=${APIKEY}&api_sig=${SIG}")
         local RC=$?
-        if [ $RC -ne 0 ] ||  echo $FROBINFO | grep -qi "err"; then
+        if [ $RC -ne 0 ] || echo $FROBINFO | grep -qi "err"; then
             echo "Some error occurred retrieving the frob."
             exit 2
         fi
@@ -76,19 +137,37 @@ checktoken() {
 }
 
 upload() {
-    local FILE="$1"
+    FILE="${FILES[$1]}"
     if ! [ -f "$FILE" ]; then
         echo "$FILE does not exist"
         continue
     fi
-    local SIG=$(echo -n ${SECRET}api_key${APIKEY}auth_token${TOKEN} | md5sum | awk '{print $1}')
-    local UPLOAD=$(curl -s -F api_key=${APIKEY} -F auth_token=${TOKEN} -F api_sig=${SIG} -F photo=@"$FILE" http://api.flickr.com/services/upload/)
-    RC=$?
+
+    # Make a temp file to hold the commands for uploading, with correct quoting.
+    # Bash tends to make a mess of things with all the variable interpolation
+    # going on here.
+    TMPFILE="/tmp/flickr-shell-uploader.$$"
+    echo -n "UPLOAD=\$(curl -s -F api_key=${APIKEY} -F auth_token=${TOKEN}" > $TMPFILE
+
+    # Construct signature text and query
+    local SIGTEXT="${SECRET}api_key${APIKEY}auth_token${TOKEN}"
+    for i in content_type description hidden is_family is_friend is_public safety_level tags title; do
+        if [ "x" != "x$(eval echo -n \$$i)" ]; then
+            SIGTEXT="${SIGTEXT}${i}$(eval echo -n \$$i)"
+            echo -n " -F ${i}=\"$(eval echo -n \$$i)\"" >> $TMPFILE
+        fi
+    done
+
+    local SIG=$(echo -n $SIGTEXT | md5sum | awk '{print $1}')
+    echo -n " -F api_sig=${SIG} -F photo=@\"${FILE}\" http://api.flickr.com/services/upload/)" >> $TMPFILE
+    echo -e "\nRC=\$?" >> $TMPFILE
+    source $TMPFILE
     if [ $RC -ne 0 ] || echo $UPLOAD | grep -qi 'err'; then
         echo "Error uploading file $FILE"
     else
         echo "Uploaded $FILE"
     fi
+    rm -f $TMPFILE
 }
 
 # We need these tools to run
@@ -108,7 +187,9 @@ gettoken
 checktoken
 
 # Upload the actual files!
-while true; do
-    [ "x$1" != "x" ] && upload "$1"
-    shift || break
+x=0
+while [ $x -lt $FILEINDEX ]; do
+    # Let the uploader just grab the filename variable itself from the array
+    upload $x
+    let x=x+1
 done
