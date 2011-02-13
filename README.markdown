@@ -43,5 +43,5 @@ Proxies should be handled by curl natively.
 
 CHANGELOG
 =========
-0.0.2 - Handles optional parameters to Flickr upload API.
-0.0.1 - extremely naive, handles some errors.
+ * 0.0.2 - Handles optional parameters to Flickr upload API.
+ * 0.0.1 - extremely naive, handles some errors.
