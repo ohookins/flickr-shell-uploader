@@ -199,7 +199,8 @@ upload() {
     if [ $RC -ne 0 ] || echo $UPLOAD | grep -qi 'err'; then
         echo "Error uploading file $FILE"
     else
-        echo "Uploaded $FILE"
+        printf %b "Uploaded $FILE"
+        echo $UPLOAD | grep -o 'photoid>[[:digit:]]*<' | tr '<>' ' ' | awk '{ print " with photoid", $2 }'
     fi
     rm -f $TMPFILE
 }
