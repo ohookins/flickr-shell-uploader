@@ -6,6 +6,9 @@ SECRET='45a4009d57890cdb'
 DOTFILE="$HOME/.flickr-shell-uploader"
 FROB=''
 TOKEN=''
+ALIASES=''
+OLDALIASES=''
+ALIASIDX=0
 
 # Check we have some command line arguments at least
 if [ $# -eq 0 ]; then
@@ -69,14 +72,42 @@ while getopts $OPTIONS name; do
 done
 
 require() {
-    if ! which $1 > /dev/null; then
-        echo "Unable to find ${1} (not installed or in PATH), which is required."
+    local program=$1
+    local alternative=$2
+
+    if ! which $program > /dev/null && [ "x" == "x${alternative}" ]; then
+        echo "Unable to find ${program} (not installed or in PATH), which is required."
         exit 1
-    else
-        # Set an alias to the command if it exists, so we don't use a shell built-in
-        alias $1=$(which $1)
+    elif ! which $program > /dev/null && ! which $alternative > /dev/null; then
+        echo "Unable to find ${program} or alternative ${alternative} (not installed or in PATH), at least one of which is required."
+        exit 1
+    elif ! which $program > /dev/null; then
+        program=$alternative
     fi
+
+    # Set an alias to the command if it exists, so we don't use a shell built-in.
+    # Also preserve any old aliases.
+    if alias $program >/dev/null 2>&1; then
+        OLDALIASES[$ALIASIDX]="$(alias $program)"
+    else
+        OLDALIASES[$ALIASIDX]=''
+    fi
+    ALIASES[$ALIASIDX]=$program
+    let ALIASIDX=ALIASIDX+1
+    alias $program=$(which $program)
 }
+
+# Reset aliases back to original values or unalias, if applicable.
+removealiases() {
+    i=0
+    while [ $i -lt $ALIASIDX ]; do
+        unalias ${ALIASES[$i]}
+        if ! [ "x" == "x${OLDALIASES[$i]}" ]; then
+            eval "${OLDALIASES[$i]}"
+        fi
+        let i=i+1
+    done
+}        
 
 loadconfig() {
     [ -f "$DOTFILE" ] && source "$DOTFILE"
@@ -143,7 +174,7 @@ upload() {
     FILE="${FILES[$1]}"
     if ! [ -f "$FILE" ]; then
         echo "$FILE does not exist"
-        continue
+        return
     fi
 
     # Make a temp file to hold the commands for uploading, with correct quoting.
@@ -178,7 +209,8 @@ require curl
 require awk
 require grep
 require tr
-require md5sum
+# "md5" is found on OSX instead of md5sum, so provide that as an alternative.
+require md5sum md5
 
 # Load a previously saved frob, otherwise make a new one
 loadconfig
@@ -196,3 +228,4 @@ while [ $x -lt $FILEINDEX ]; do
     upload $x
     let x=x+1
 done
+removealiases

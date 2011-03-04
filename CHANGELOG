@@ -1,0 +1,12 @@
+0.0.3
+ - Correctly exits upload function if the file doesn't exist.
+ - Allows for alternatives to be provided to non-bash commands (e.g. md5 for md5sum on OSX).
+ - Uses printf (from coreutils) instead of echo -n, which caused some issues on OSX.
+ - Aliases non-bash commands to their full path, to prevent using bash built-ins with the same name.
+ - Gracefully saves existing aliases and restores them after run, in case of name conflict.
+
+0.0.2
+ - Handles optional parameters to Flickr upload API.
+
+0.0.1
+ - extremely naive, handles some errors.
