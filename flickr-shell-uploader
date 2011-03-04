@@ -72,6 +72,9 @@ require() {
     if ! which $1 > /dev/null; then
         echo "Unable to find ${1} (not installed or in PATH), which is required."
         exit 1
+    else
+        # Set an alias to the command if it exists, so we don't use a shell built-in
+        alias $1=$(which $1)
     fi
 }
 
@@ -81,7 +84,7 @@ loadconfig() {
 
 getfrob() {
     if [ "x$FROB" == "x" ]; then
-        local SIG=$(echo -n ${SECRET}api_key${APIKEY}methodflickr.auth.getFrob | md5sum | awk '{print $1}')
+        local SIG=$(printf %b ${SECRET}api_key${APIKEY}methodflickr.auth.getFrob | md5sum | awk '{print $1}')
         local FROBINFO=$(curl -s "http://api.flickr.com/services/rest/?method=flickr.auth.getFrob&api_key=${APIKEY}&api_sig=${SIG}")
         local RC=$?
         if [ $RC -ne 0 ] || echo $FROBINFO | grep -qi "err"; then
@@ -95,7 +98,7 @@ getfrob() {
 
 auth() {
     if [ "x$TOKEN" == "x" ]; then
-        local SIG=$(echo -n ${SECRET}api_key${APIKEY}frob${FROB}permswrite | md5sum | awk '{print $1}')
+        local SIG=$(printf %b ${SECRET}api_key${APIKEY}frob${FROB}permswrite | md5sum | awk '{print $1}')
         echo "Please go to the following URL: http://flickr.com/services/auth/?api_key=${APIKEY}&perms=write&frob=${FROB}&api_sig=${SIG}"
         echo ""
         echo "Then return here and press enter."
@@ -105,7 +108,7 @@ auth() {
 
 gettoken() {
     if [ "x$TOKEN" == "x" ]; then
-        local SIG=$(echo -n ${SECRET}api_key${APIKEY}frob${FROB}methodflickr.auth.getToken | md5sum | awk '{print $1}')
+        local SIG=$(printf %b ${SECRET}api_key${APIKEY}frob${FROB}methodflickr.auth.getToken | md5sum | awk '{print $1}')
         local TOKENINFO=$(curl -s "http://api.flickr.com/services/rest/?method=flickr.auth.getToken&api_key=${APIKEY}&frob=${FROB}&api_sig=${SIG}")
         local RC=$?
         if [ $RC -ne 0 ] || echo $TOKENINFO | grep -qi "err"; then
@@ -122,7 +125,7 @@ checktoken() {
         echo "No token was defined."
         exit 4
     else
-        local SIG=$(echo -n ${SECRET}api_key${APIKEY}auth_token${TOKEN}methodflickr.auth.checkToken | md5sum | awk '{print $1}')
+        local SIG=$(printf %b ${SECRET}api_key${APIKEY}auth_token${TOKEN}methodflickr.auth.checkToken | md5sum | awk '{print $1}')
         local TOKENINFO=$(curl -s "http://api.flickr.com/services/rest/?method=flickr.auth.checkToken&api_key=${APIKEY}&auth_token=${TOKEN}&api_sig=${SIG}")
         local RC=$?
         if [ $RC -ne 0 ] || echo $TOKENINFO | grep -qi "err"; then
@@ -147,19 +150,19 @@ upload() {
     # Bash tends to make a mess of things with all the variable interpolation
     # going on here.
     TMPFILE="/tmp/flickr-shell-uploader.$$"
-    echo -n "UPLOAD=\$(curl -s -F api_key=${APIKEY} -F auth_token=${TOKEN}" > $TMPFILE
+    printf %b "UPLOAD=\$(curl -s -F api_key=${APIKEY} -F auth_token=${TOKEN}" > $TMPFILE
 
     # Construct signature text and query
     local SIGTEXT="${SECRET}api_key${APIKEY}auth_token${TOKEN}"
     for i in content_type description hidden is_family is_friend is_public safety_level tags title; do
-        if [ "x" != "x$(eval echo -n \$$i)" ]; then
-            SIGTEXT="${SIGTEXT}${i}$(eval echo -n \$$i)"
-            echo -n " -F ${i}=\"$(eval echo -n \$$i)\"" >> $TMPFILE
+        if [ "x" != "x$(eval printf %b \$$i)" ]; then
+            SIGTEXT="${SIGTEXT}${i}$(eval printf %b \$$i)"
+            printf %b " -F ${i}=\"$(eval printf %b \$$i)\"" >> $TMPFILE
         fi
     done
 
-    local SIG=$(echo -n $SIGTEXT | md5sum | awk '{print $1}')
-    echo -n " -F api_sig=${SIG} -F photo=@\"${FILE}\" http://api.flickr.com/services/upload/)" >> $TMPFILE
+    local SIG=$(printf %b $SIGTEXT | md5sum | awk '{print $1}')
+    printf %b " -F api_sig=${SIG} -F photo=@\"${FILE}\" http://api.flickr.com/services/upload/)" >> $TMPFILE
     echo -e "\nRC=\$?" >> $TMPFILE
     source $TMPFILE
     if [ $RC -ne 0 ] || echo $UPLOAD | grep -qi 'err'; then
