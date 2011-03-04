@@ -185,6 +185,7 @@ upload() {
 
     # Construct signature text and query
     local SIGTEXT="${SECRET}api_key${APIKEY}auth_token${TOKEN}"
+    IFS=$(printf "\n\b")
     for i in content_type description hidden is_family is_friend is_public safety_level tags title; do
         if [ "x" != "x$(eval printf %b \$$i)" ]; then
             SIGTEXT="${SIGTEXT}${i}$(eval printf %b \$$i)"
