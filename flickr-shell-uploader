@@ -116,10 +116,14 @@ loadconfig() {
 getfrob() {
     if [ "x$FROB" == "x" ]; then
         local SIG=$(printf %b ${SECRET}api_key${APIKEY}methodflickr.auth.getFrob | md5sum | awk '{print $1}')
-        local FROBINFO=$(curl -s "http://api.flickr.com/services/rest/?method=flickr.auth.getFrob&api_key=${APIKEY}&api_sig=${SIG}")
+        FROBINFO=$(curl -s "http://api.flickr.com/services/rest/?method=flickr.auth.getFrob&api_key=${APIKEY}&api_sig=${SIG}")
         local RC=$?
-        if [ $RC -ne 0 ] || echo $FROBINFO | grep -qi "err"; then
-            echo "Some error occurred retrieving the frob."
+        if [ $RC -ne 0 ]; then
+            echo "curl returned error $RC. Please consult the curl documentation for the error meaning."
+            exit $RC
+        fi
+        if echo $FROBINFO | grep -qi "err"; then
+            echo "The Flickr API returned an error while retrieving the frob. Please try again."
             exit 2
         fi
         FROB=$(echo $FROBINFO | grep -o '<frob>.*</frob>' | tr '<>' ' ' | awk '{print $2}')
@@ -140,7 +144,7 @@ auth() {
 gettoken() {
     if [ "x$TOKEN" == "x" ]; then
         local SIG=$(printf %b ${SECRET}api_key${APIKEY}frob${FROB}methodflickr.auth.getToken | md5sum | awk '{print $1}')
-        local TOKENINFO=$(curl -s "http://api.flickr.com/services/rest/?method=flickr.auth.getToken&api_key=${APIKEY}&frob=${FROB}&api_sig=${SIG}")
+        TOKENINFO=$(curl -s "http://api.flickr.com/services/rest/?method=flickr.auth.getToken&api_key=${APIKEY}&frob=${FROB}&api_sig=${SIG}")
         local RC=$?
         if [ $RC -ne 0 ] || echo $TOKENINFO | grep -qi "err"; then
             echo "Was not able to successfully get the token of the confirmed frob. Try deleting $DOTFILE and starting again."
@@ -157,7 +161,7 @@ checktoken() {
         exit 4
     else
         local SIG=$(printf %b ${SECRET}api_key${APIKEY}auth_token${TOKEN}methodflickr.auth.checkToken | md5sum | awk '{print $1}')
-        local TOKENINFO=$(curl -s "http://api.flickr.com/services/rest/?method=flickr.auth.checkToken&api_key=${APIKEY}&auth_token=${TOKEN}&api_sig=${SIG}")
+        TOKENINFO=$(curl -s "http://api.flickr.com/services/rest/?method=flickr.auth.checkToken&api_key=${APIKEY}&auth_token=${TOKEN}&api_sig=${SIG}")
         local RC=$?
         if [ $RC -ne 0 ] || echo $TOKENINFO | grep -qi "err"; then
             echo "Was not able to successfully check the token of the confirmed frob. Try deleting $DOTFILE and starting again."

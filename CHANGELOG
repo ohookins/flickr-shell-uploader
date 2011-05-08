@@ -5,6 +5,7 @@
  - Aliases non-bash commands to their full path, to prevent using bash built-ins with the same name.
  - Gracefully saves existing aliases and restores them after run, in case of name conflict.
  - Print photoid of successfully uploaded photos.
+ - Correctly handles errors thrown by subprocesses, and provide better output from curl failures.
 
 0.0.2
  - Handles optional parameters to Flickr upload API.
