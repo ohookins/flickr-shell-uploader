@@ -1,6 +1,6 @@
 #!/bin/bash
 
-OPTIONS='t:d:a:p:f:m:s:c:h:i:'
+OPTIONS='t:d:a:p:f:m:s:c:h:z:n:i:'
 APIKEY='beaf572d391130cbc8e7574ef1dbd1e0'
 SECRET='45a4009d57890cdb'
 DOTFILE="$HOME/.flickr-shell-uploader"
@@ -14,7 +14,7 @@ ALIASIDX=0
 if [ $# -eq 0 ]; then
     cat <<EOF
 Usage:
-    flickr-shell-uploader [-t TITLE] [-d DESCRIPTION] [-a TAGS] [-p IS_PUBLIC] [-f IS_FRIEND] [-m IS_FAMILY] [-s SAFETY_LEVEL] [-c CONTENT_TYPE] [-h HIDDEN] -i <file> [-i <file> ...]
+    flickr-shell-uploader [-t TITLE] [-d DESCRIPTION] [-a TAGS] [-p IS_PUBLIC] [-f IS_FRIEND] [-m IS_FAMILY] [-s SAFETY_LEVEL] [-c CONTENT_TYPE] [-h HIDDEN] [-n SUFFIX] [-x IMAGESIZE] -i <file> [-i <file> ...]
 
     All of the below options are optional (aside from files to upload):
     TITLE: Title of your photo.
@@ -26,6 +26,18 @@ Usage:
     SAFETY_LEVEL: 1 = safe, 2 = moderate, 3 = restricted.
     CONTENT_TYPE: 1 = photo, 2 = screenshot, 3 = other.
     HIDDEN: 1 = visible, 2 = hidden. Hides the photo from public searches.
+    SUFFIX: png or PNG or jpg or JPG or jpeg or JPEG
+    FILE: one file or "all". if "all" you need to specify the -n SUFFIX
+    IMAGESIZE:  s  small square 75x75
+                q  large square 150x150
+                t  thumbnail, 100px on the longest side
+                m  small, 240px on the longest side
+                n  small, 320px on the longest side
+                -  small, 500px on the longest side
+                z  medium, 640px on the longest side
+                c  medium, 800px on the longest side
+                b  large, 1024px on the longest side
+                o  original format, either JPG, GIF or PNG, depending on source format
 
     One or more files may be supplied, but the above options may only be useful for individual files!
 
@@ -64,9 +76,39 @@ while getopts $OPTIONS name; do
         h)
             hidden="$OPTARG"
             ;;
-        i)
-            FILES[$FILEINDEX]="$OPTARG"
-            let FILEINDEX=FILEINDEX+1
+
+        z)  imagesize="$OPTARG"
+          ;;
+
+        n)   suffix="$OPTARG"
+          ;;
+
+        i)  if [ $OPTARG = "all" ]
+              then
+
+              echo "Start uploading all ${suffix} files in current directory"
+
+              find *.$suffix > filestmp.txt
+              lines=$(cat filestmp.txt | wc -l)
+
+              if [ $lines -eq 0 ]
+                then
+                  echo "Error: no suffix (eg. -n JPG) or no files in directory"
+                else
+
+                  for((i=1; i<=$lines; i++))
+                    do
+                        tmpfile="filestmp.txt"
+                        FILES[$FILEINDEX]=$(sed -n "${i}p" ${tmpfile})
+                        let FILEINDEX=FILEINDEX+1
+                    done
+              fi
+                  rm -f ${tmpfile}
+            else
+              echo "Upload one file: ${OPTARG}"
+              FILES[$FILEINDEX]="$OPTARG"
+              let FILEINDEX=FILEINDEX+1
+            fi
             ;;
     esac
 done
@@ -107,7 +149,7 @@ removealiases() {
         fi
         let i=i+1
     done
-}        
+}
 
 loadconfig() {
     [ -f "$DOTFILE" ] && source "$DOTFILE"
@@ -115,7 +157,7 @@ loadconfig() {
 
 getfrob() {
     if [ "x$FROB" == "x" ]; then
-        local SIG=$(printf %b ${SECRET}api_key${APIKEY}methodflickr.auth.getFrob | md5sum | awk '{print $1}')
+        local SIG=$(printf %b ${SECRET}api_key${APIKEY}methodflickr.auth.getFrob | md5 | awk '{print $1}')
         FROBINFO=$(curl -s "http://api.flickr.com/services/rest/?method=flickr.auth.getFrob&api_key=${APIKEY}&api_sig=${SIG}")
         local RC=$?
         if [ $RC -ne 0 ]; then
@@ -133,7 +175,7 @@ getfrob() {
 
 auth() {
     if [ "x$TOKEN" == "x" ]; then
-        local SIG=$(printf %b ${SECRET}api_key${APIKEY}frob${FROB}permswrite | md5sum | awk '{print $1}')
+        local SIG=$(printf %b ${SECRET}api_key${APIKEY}frob${FROB}permswrite | md5 | awk '{print $1}')
         echo "Please go to the following URL: http://flickr.com/services/auth/?api_key=${APIKEY}&perms=write&frob=${FROB}&api_sig=${SIG}"
         echo ""
         echo "Then return here and press enter."
@@ -143,7 +185,7 @@ auth() {
 
 gettoken() {
     if [ "x$TOKEN" == "x" ]; then
-        local SIG=$(printf %b ${SECRET}api_key${APIKEY}frob${FROB}methodflickr.auth.getToken | md5sum | awk '{print $1}')
+        local SIG=$(printf %b ${SECRET}api_key${APIKEY}frob${FROB}methodflickr.auth.getToken | md5 | awk '{print $1}')
         TOKENINFO=$(curl -s "http://api.flickr.com/services/rest/?method=flickr.auth.getToken&api_key=${APIKEY}&frob=${FROB}&api_sig=${SIG}")
         local RC=$?
         if [ $RC -ne 0 ] || echo $TOKENINFO | grep -qi "err"; then
@@ -160,7 +202,7 @@ checktoken() {
         echo "No token was defined."
         exit 4
     else
-        local SIG=$(printf %b ${SECRET}api_key${APIKEY}auth_token${TOKEN}methodflickr.auth.checkToken | md5sum | awk '{print $1}')
+        local SIG=$(printf %b ${SECRET}api_key${APIKEY}auth_token${TOKEN}methodflickr.auth.checkToken | md5 | awk '{print $1}')
         TOKENINFO=$(curl -s "http://api.flickr.com/services/rest/?method=flickr.auth.checkToken&api_key=${APIKEY}&auth_token=${TOKEN}&api_sig=${SIG}")
         local RC=$?
         if [ $RC -ne 0 ] || echo $TOKENINFO | grep -qi "err"; then
@@ -197,7 +239,7 @@ upload() {
         fi
     done
 
-    local SIG=$(printf %b $SIGTEXT | md5sum | awk '{print $1}')
+    local SIG=$(printf %b $SIGTEXT | md5 | awk '{print $1}')
     printf %b " -F api_sig=${SIG} -F photo=@\"${FILE}\" http://api.flickr.com/services/upload/)" >> $TMPFILE
     echo -e "\nRC=\$?" >> $TMPFILE
     source $TMPFILE
@@ -206,6 +248,26 @@ upload() {
     else
         printf %b "Uploaded $FILE"
         echo $UPLOAD | grep -o 'photoid>[[:digit:]]*<' | tr '<>' ' ' | awk '{ print " with photoid", $2 }'
+        photo_id_=$(echo $UPLOAD | grep -o 'photoid>[[:digit:]]*<' | tr '<>' ' ' | awk '{ print $2 }')
+
+        echo $(curl -s "http://api.flickr.com/services/rest/?method=flickr.photos.getInfo&api_key=${APIKEY}&photo_id=${photo_id_}") > imageinfo.txt
+    photo_secret=$(grep -o ' secret="[[:alnum:]]*"' imageinfo.txt | grep -o '"[[:alnum:]]*"' | tr -d '"')
+    photo_o_secret=$(grep -o 'originalsecret="[[:alnum:]]*"' imageinfo.txt | grep -o '"[[:alnum:]]*"' | tr -d '"')
+    photo_farm=$(grep -o ' farm="[[:alnum:]]*"' imageinfo.txt | grep -o '"[[:alnum:]]*"' | tr -d '"')
+    photo_server=$(grep -o ' server="[[:alnum:]]*"' imageinfo.txt | grep -o '"[[:alnum:]]*"' | tr -d '"')
+
+    if [ $imagesize = "o" ]
+    then
+      echo "http://farm${photo_farm}.staticflickr.com/${photo_server}/${photo_id_}_${photo_o_secret}_${imagesize}.${suffix}"
+      #echo "http://farm${photo_farm}.staticflickr.com/${photo_server}/${photo_id_}_${photo_o_secret}_${imagesize}.${suffix}" >> HTML_Links_${title}.txt
+      echo echo "<br><img src="http://farm${photo_farm}.staticflickr.com/${photo_server}/${photo_id_}_${photo_o_secret}_${imagesize}.${suffix}" alt="TEST">" >> HTML_Links_${title}.txt
+    else
+      echo "http://farm${photo_farm}.staticflickr.com/${photo_server}/${photo_id_}_${photo_secret}_${imagesize}.jpg"
+      #echo "http://farm${photo_farm}.staticflickr.com/${photo_server}/${photo_id_}_${photo_secret}_${imagesize}.jpg" >> HTML_Links_${title}.txt
+      echo "<br><img src="http://farm${photo_farm}.staticflickr.com/${photo_server}/${photo_id_}_${photo_secret}_${imagesize}.jpg" alt="TEST">" >> HTML_Links_${title}.txt
+    fi
+
+    rm -f imageinfo.txt
     fi
     rm -f $TMPFILE
 }

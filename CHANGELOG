@@ -1,3 +1,6 @@
+0.0.4
+ - Further options for generating static links, provided by waldemar.heimann@googlemail.com
+
 0.0.3
  - Correctly exits upload function if the file doesn't exist.
  - Allows for alternatives to be provided to non-bash commands (e.g. md5 for md5sum on OSX).
