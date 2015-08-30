@@ -116,7 +116,7 @@ loadconfig() {
 getfrob() {
     if [ "x$FROB" == "x" ]; then
         local SIG=$(printf %b ${SECRET}api_key${APIKEY}methodflickr.auth.getFrob | md5sum | awk '{print $1}')
-        FROBINFO=$(curl -s "http://api.flickr.com/services/rest/?method=flickr.auth.getFrob&api_key=${APIKEY}&api_sig=${SIG}")
+        FROBINFO=$(curl -s --sslv3 "https://api.flickr.com/services/rest/?method=flickr.auth.getFrob&api_key=${APIKEY}&api_sig=${SIG}")
         local RC=$?
         if [ $RC -ne 0 ]; then
             echo "curl returned error $RC. Please consult the curl documentation for the error meaning."
@@ -134,7 +134,7 @@ getfrob() {
 auth() {
     if [ "x$TOKEN" == "x" ]; then
         local SIG=$(printf %b ${SECRET}api_key${APIKEY}frob${FROB}permswrite | md5sum | awk '{print $1}')
-        echo "Please go to the following URL: http://flickr.com/services/auth/?api_key=${APIKEY}&perms=write&frob=${FROB}&api_sig=${SIG}"
+        echo "Please go to the following URL: https://flickr.com/services/auth/?api_key=${APIKEY}&perms=write&frob=${FROB}&api_sig=${SIG}"
         echo ""
         echo "Then return here and press enter."
         read line
@@ -144,7 +144,7 @@ auth() {
 gettoken() {
     if [ "x$TOKEN" == "x" ]; then
         local SIG=$(printf %b ${SECRET}api_key${APIKEY}frob${FROB}methodflickr.auth.getToken | md5sum | awk '{print $1}')
-        TOKENINFO=$(curl -s "http://api.flickr.com/services/rest/?method=flickr.auth.getToken&api_key=${APIKEY}&frob=${FROB}&api_sig=${SIG}")
+        TOKENINFO=$(curl -s --sslv3 "https://api.flickr.com/services/rest/?method=flickr.auth.getToken&api_key=${APIKEY}&frob=${FROB}&api_sig=${SIG}")
         local RC=$?
         if [ $RC -ne 0 ] || echo $TOKENINFO | grep -qi "err"; then
             echo "Was not able to successfully get the token of the confirmed frob. Try deleting $DOTFILE and starting again."
@@ -161,7 +161,7 @@ checktoken() {
         exit 4
     else
         local SIG=$(printf %b ${SECRET}api_key${APIKEY}auth_token${TOKEN}methodflickr.auth.checkToken | md5sum | awk '{print $1}')
-        TOKENINFO=$(curl -s "http://api.flickr.com/services/rest/?method=flickr.auth.checkToken&api_key=${APIKEY}&auth_token=${TOKEN}&api_sig=${SIG}")
+        TOKENINFO=$(curl -s --sslv3 "https://api.flickr.com/services/rest/?method=flickr.auth.checkToken&api_key=${APIKEY}&auth_token=${TOKEN}&api_sig=${SIG}")
         local RC=$?
         if [ $RC -ne 0 ] || echo $TOKENINFO | grep -qi "err"; then
             echo "Was not able to successfully check the token of the confirmed frob. Try deleting $DOTFILE and starting again."
@@ -185,7 +185,7 @@ upload() {
     # Bash tends to make a mess of things with all the variable interpolation
     # going on here.
     TMPFILE="/tmp/flickr-shell-uploader.$$"
-    printf %b "UPLOAD=\$(curl -s -F api_key=${APIKEY} -F auth_token=${TOKEN}" > $TMPFILE
+    printf %b "UPLOAD=\$(curl -s --sslv3 -H "Expect:" -F api_key=${APIKEY} -F auth_token=${TOKEN}" > $TMPFILE
 
     # Construct signature text and query
     local SIGTEXT="${SECRET}api_key${APIKEY}auth_token${TOKEN}"
@@ -198,7 +198,7 @@ upload() {
     done
 
     local SIG=$(printf %b $SIGTEXT | md5sum | awk '{print $1}')
-    printf %b " -F api_sig=${SIG} -F photo=@\"${FILE}\" http://api.flickr.com/services/upload/)" >> $TMPFILE
+    printf %b " -F api_sig=${SIG} -F photo=@\"${FILE}\" https://up.flickr.com/services/upload/)" >> $TMPFILE
     echo -e "\nRC=\$?" >> $TMPFILE
     source $TMPFILE
     if [ $RC -ne 0 ] || echo $UPLOAD | grep -qi 'err'; then
