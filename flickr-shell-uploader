@@ -116,7 +116,7 @@ loadconfig() {
 getfrob() {
     if [ "x$FROB" == "x" ]; then
         local SIG=$(printf %b ${SECRET}api_key${APIKEY}methodflickr.auth.getFrob | md5sum | awk '{print $1}')
-        FROBINFO=$(curl -s --sslv3 "https://api.flickr.com/services/rest/?method=flickr.auth.getFrob&api_key=${APIKEY}&api_sig=${SIG}")
+        FROBINFO=$(curl -s --tlsv1 "https://api.flickr.com/services/rest/?method=flickr.auth.getFrob&api_key=${APIKEY}&api_sig=${SIG}")
         local RC=$?
         if [ $RC -ne 0 ]; then
             echo "curl returned error $RC. Please consult the curl documentation for the error meaning."
@@ -144,7 +144,7 @@ auth() {
 gettoken() {
     if [ "x$TOKEN" == "x" ]; then
         local SIG=$(printf %b ${SECRET}api_key${APIKEY}frob${FROB}methodflickr.auth.getToken | md5sum | awk '{print $1}')
-        TOKENINFO=$(curl -s --sslv3 "https://api.flickr.com/services/rest/?method=flickr.auth.getToken&api_key=${APIKEY}&frob=${FROB}&api_sig=${SIG}")
+        TOKENINFO=$(curl -s --tlsv1 "https://api.flickr.com/services/rest/?method=flickr.auth.getToken&api_key=${APIKEY}&frob=${FROB}&api_sig=${SIG}")
         local RC=$?
         if [ $RC -ne 0 ] || echo $TOKENINFO | grep -qi "err"; then
             echo "Was not able to successfully get the token of the confirmed frob. Try deleting $DOTFILE and starting again."
@@ -161,7 +161,7 @@ checktoken() {
         exit 4
     else
         local SIG=$(printf %b ${SECRET}api_key${APIKEY}auth_token${TOKEN}methodflickr.auth.checkToken | md5sum | awk '{print $1}')
-        TOKENINFO=$(curl -s --sslv3 "https://api.flickr.com/services/rest/?method=flickr.auth.checkToken&api_key=${APIKEY}&auth_token=${TOKEN}&api_sig=${SIG}")
+        TOKENINFO=$(curl -s --tlsv1 "https://api.flickr.com/services/rest/?method=flickr.auth.checkToken&api_key=${APIKEY}&auth_token=${TOKEN}&api_sig=${SIG}")
         local RC=$?
         if [ $RC -ne 0 ] || echo $TOKENINFO | grep -qi "err"; then
             echo "Was not able to successfully check the token of the confirmed frob. Try deleting $DOTFILE and starting again."
@@ -185,7 +185,7 @@ upload() {
     # Bash tends to make a mess of things with all the variable interpolation
     # going on here.
     TMPFILE="/tmp/flickr-shell-uploader.$$"
-    printf %b "UPLOAD=\$(curl -s --sslv3 -H "Expect:" -F api_key=${APIKEY} -F auth_token=${TOKEN}" > $TMPFILE
+    printf %b "UPLOAD=\$(curl -s --tlsv1 -H "Expect:" -F api_key=${APIKEY} -F auth_token=${TOKEN}" > $TMPFILE
 
     # Construct signature text and query
     local SIGTEXT="${SECRET}api_key${APIKEY}auth_token${TOKEN}"
