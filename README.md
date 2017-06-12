@@ -3,6 +3,8 @@ SUMMARY
 
 This is an extremely simple and naive photo uploader for Flickr.
 
+WARNING: This repository is now deprecated. Flickr has updated their authentication mechanism to required OAuth and this script only uses the older precursor to OAuth. I'm not going to update the script as there are doubtlessly better alternatives out there, and shell is actually a terrible way of doing this. However if you really feel like modifying it, it has been relicensed under MIT and you are free to do with it as you wish.
+
 REQUIREMENTS
 ============
  * curl
